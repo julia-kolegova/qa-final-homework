@@ -12,7 +12,7 @@ BASE_URL = "http://localhost:8000"
 def driver():
     """Spin-up Chrome (or another webdriver) for each test."""
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")  # remove if you need UI
+    options.add_argument("--headless=new")  
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(5)
     yield driver
