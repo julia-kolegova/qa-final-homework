@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 
 
-class TestCardInput(unittest.TestCase):
+class TestBerezovskaia(unittest.TestCase):
     def setUp(self) -> None:
         chrome_options = ChromeOptions()
 
@@ -25,6 +25,14 @@ class TestCardInput(unittest.TestCase):
         rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[1]/div')
         rubles_field.click()
 
+    def enable_dollars(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[2]/div')
+        rubles_field.click()
+
+    def enable_evro(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[3]/div')
+        rubles_field.click()
+
     def card_input(self, card_number: str) -> str:
         input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
         input_field.send_keys(card_number)
@@ -33,6 +41,7 @@ class TestCardInput(unittest.TestCase):
 
     def amount_input(self, amount: str) -> str:
         input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input[2]')
+        input_field.clear()
         input_field.send_keys(amount)
         value = input_field.get_attribute("value")
         return value.replace(" ", "")
@@ -44,6 +53,13 @@ class TestCardInput(unittest.TestCase):
         except:
             return None
 
+    def get_exception_message(self) -> WebElement | None:
+        try:
+            exception_message = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/span[2]')
+            return exception_message
+        except:
+            return None
+
     def test_card_number_length(self):
         time.sleep(5)
         self.enable_rubles()
@@ -51,7 +67,7 @@ class TestCardInput(unittest.TestCase):
         value = self.card_input("12345678901234567")
         self.assertLessEqual(len(value), 16, "Card number accepts more then 16 digits")
 
-    def check_negative_amount(self):
+    def test_check_negative_amount(self):
         self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
         time.sleep(5)
         self.enable_rubles()
@@ -59,6 +75,49 @@ class TestCardInput(unittest.TestCase):
         self.card_input("1111111111111111")
         time.sleep(1)
         self.amount_input("-100")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
+
+    def test_zero_amount(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        self.enable_rubles()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("0")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
+
+    def test_dollar_transaction_amount_more_than_the_amount_on_the_account(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        self.enable_dollars()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("9000")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
+
+    def test_evro_transaction_amount_more_than_the_amount_on_the_account(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        self.enable_evro()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("5000")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
 
     def tearDown(self) -> None:
         self.driver.quit()
