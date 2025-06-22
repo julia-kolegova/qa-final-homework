@@ -26,6 +26,4 @@ jobs:
             echo "Waiting for server... Attempt $i"
             sleep 2
           done
-          echo "Server did not start within the given time."
-          exit 1
           python -m unittest discover -s tests -v
