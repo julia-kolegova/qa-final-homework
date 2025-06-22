@@ -10,4 +10,4 @@
 
 # Старт тестов
 > Версия python 3.12
-- `pip install -r requirements.txt` 
+- `pip install -r requirements.txt`
