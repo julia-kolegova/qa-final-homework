@@ -1,7 +1,4 @@
 import unittest
-import time
-import requests
-import logging
 
 from selenium import webdriver
 from selenium.webdriver import ChromeOptions
@@ -95,7 +92,7 @@ class TestKolegova(unittest.TestCase):
         money_1 = "5000"
         money_2 = "1000"
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        self.find_element('//*[@id="root"]')
+        print(self.driver.title)
         self.enable_rubles()
 
         self.card_input(card)
