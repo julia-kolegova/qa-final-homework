@@ -15,14 +15,14 @@ class TestBerezovskaia(unittest.TestCase):
         chrome_options = ChromeOptions()
 
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-infobars")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
+        # chrome_options.add_argument("--no-sandbox")
+        # chrome_options.add_argument("--disable-dev-shm-usage")
 
         service = ChromeService(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        self.driver.implicitly_wait(60)
+        # self.driver.implicitly_wait(60)
 
     def tearDown(self) -> None:
         self.driver.quit()
@@ -78,6 +78,7 @@ class TestBerezovskaia(unittest.TestCase):
             return None
 
     def test_card_number_length(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
         self.enable_rubles()
         value = self.card_input("12345678901234567")
         self.assertLessEqual(len(value), 16, "Card number accepts more then 16 digits")
