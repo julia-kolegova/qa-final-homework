@@ -1,4 +1,3 @@
-
 import unittest
 import time
 
@@ -13,12 +12,11 @@ from selenium.webdriver.remote.webelement import WebElement
 BASE_URL = "http://localhost:8000"
 
 
-class TestTransferCore(unittest.TestCase):
-    # ---------- set-up / tear-down ---------- #
+class TestSenovalov(unittest.TestCase):
     def setUp(self) -> None:
         chrome_options = ChromeOptions()
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-infobars")
 
         service = ChromeService(executable_path=ChromeDriverManager().install())
@@ -27,12 +25,13 @@ class TestTransferCore(unittest.TestCase):
     def tearDown(self) -> None:
         self.driver.quit()
 
-    # ---------- служебные методы ---------- #
-    def open_app(self, balance: int | float, reserved: int | float, **query):
+    def open_app(self, balance: int | float, reserved: int | float):
         url = f"{BASE_URL}/?balance={balance}&reserved={reserved}"
-        for k, v in query.items():
-            url += f"&{k}={v}"
         self.driver.get(url)
+
+    def enable_rubles(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[1]/div')
+        rubles_field.click()
 
     def card_input(self, card_number: str) -> str:
         field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
@@ -49,19 +48,39 @@ class TestTransferCore(unittest.TestCase):
         return field.get_attribute("value").replace(" ", "")
 
     def get_fee_value(self) -> str:
-        fee_el = self.driver.find_element(By.XPATH, '//*[@id="fee"]')
-        return fee_el.text.replace(" ", "")
+        fee_el = self.driver.find_element(By.XPATH, '//*[@id="comission"]')
+        value = fee_el.text
+        return value.replace(" ", "")
 
-    def click_send(self):
-        btn = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button')
-        btn.click()
-
-    def get_toast(self) -> str | None:
+    def get_send_button(self) -> WebElement | None:
         try:
-            toast = self.driver.find_element(By.XPATH, '//div[contains(@class,"toast")]')
-            return toast.text
+            send_button = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button/span')
+            return send_button
         except:
             return None
+
+    def send_money(self, button: WebElement):
+        button.click()
+
+    def get_exception_message(self) -> WebElement | None:
+        try:
+            exception_message = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/span[2]')
+            return exception_message
+        except:
+            return None
+
+    def get_toast(self) -> str:
+        driver = self.driver
+        alert = driver.switch_to.alert
+        alert_text = alert.text
+        alert.accept()
+        return alert_text
+
+    def get_ruble_balance(self) -> str:
+        ruble_balance = self.driver.find_element(By.XPATH, '//*[@id="rub-sum"]')
+        value = ruble_balance.text
+        value = value.replace("'", "")
+        return value
 
     # ---------- TC-011 ---------- #
     def test_exact_available_balance_transfer(self):
@@ -71,67 +90,76 @@ class TestTransferCore(unittest.TestCase):
         """
         self.open_app(balance=1100, reserved=0)
         time.sleep(2)
-
+        self.enable_rubles()
         self.card_input("5559000000000000")
         self.amount_input("1000")
         initial_fee = self.get_fee_value()
-        self.assertTrue(initial_fee.startswith("100"), "Комиссия не равна 100 ₽")
+        self.assertTrue(int(initial_fee) == 100, "Комиссия не равна 100 ₽")
+        time.sleep(1)
+        exception_message = self.get_exception_message()
+        self.assertIsNone(exception_message)
+        send_button = self.get_send_button()
+        self.assertIsNotNone(send_button)
+        self.send_money(send_button)
 
-        self.click_send()
         time.sleep(2)
-
         toast = self.get_toast()
         self.assertIsNotNone(toast)
-        self.assertIn("успешно", toast.lower())
-
-        balance_el = self.driver.find_element(By.XPATH, '//*[@id="balance"]')
-        self.assertIn(balance_el.text.replace(" ", ""), ("0₽", "0"))
+        self.assertIn("принят", toast.lower())
+        balance_el = self.get_ruble_balance()
+        self.assertTrue(balance_el == 0, "Баланс должен быть равен 0")
 
     # ---------- TC-012 ---------- #
     def test_amount_with_comma(self):
         self.open_app(balance=10000, reserved=0)
         time.sleep(2)
+        self.enable_rubles()
 
         self.card_input("5559000000000000")
         self.amount_input("1234,56")
         fee = self.get_fee_value()
-        self.assertTrue(fee.startswith("123"), "Комиссия должна быть 123 ₽")
+        self.assertTrue(int(fee) == 123, "Комиссия должна быть 123 ₽")
 
-        self.click_send()
+        send_button = self.get_send_button()
+        self.assertIsNotNone(send_button)
+        self.send_money(send_button)
         time.sleep(1)
         toast = self.get_toast()
-        self.assertIn("успешно", toast.lower())
+        self.assertIn("принят", toast.lower())
 
     # ---------- TC-013 ---------- #
     def test_amount_with_thousand_separator(self):
         self.open_app(balance=10000, reserved=0)
         time.sleep(2)
+        self.enable_rubles()
 
         self.card_input("5559000000000000")
         self.amount_input("1 000")            # ввод с пробелом
         amount_val = self.amount_input("1 000")
         self.assertEqual(amount_val, "1000", "Разделитель тысяч не убран")
 
-        self.click_send()
+        send_button = self.get_send_button()
+        self.assertIsNotNone(send_button)
+        self.send_money(send_button)
         time.sleep(1)
-        self.assertIn("успешно", self.get_toast().lower())
+        self.assertIn("принят", self.get_toast().lower())
 
     # ---------- TC-014 ---------- #
     def test_amount_more_than_two_decimals(self):
         self.open_app(balance=10000, reserved=0)
         time.sleep(2)
+        self.enable_rubles()
 
         self.card_input("5559000000000000")
-        self.amount_input("1234,567")         # 3 знака после запятой
+        amount = self.amount_input("1234,567")         # 3 знака после запятой
+        self.assertEqual(amount, "1234,567")
 
         # должно появиться сообщение об ошибке и кнопка стать неактивной
-        error_msg = self.driver.find_element(By.XPATH, '//*[@id="amountError"]').text
-        self.assertIn("два знака", error_msg.lower())
+        exception_message = self.get_exception_message()
+        self.assertIsNotNone(exception_message)
 
-        send_btn_disabled = self.driver.find_element(
-            By.XPATH, '//*[@id="root"]/div/div/div[2]/button'
-        ).get_attribute("disabled")
-        self.assertTrue(send_btn_disabled)
+        send_button = self.get_send_button()
+        self.assertIsNone(send_button)
 
     # ---------- TC-015 ---------- #
     def test_parallel_transfers(self):
