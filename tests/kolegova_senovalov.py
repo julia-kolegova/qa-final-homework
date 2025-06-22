@@ -16,7 +16,7 @@ class TestSenovalov(unittest.TestCase):
     def setUp(self) -> None:
         chrome_options = ChromeOptions()
         chrome_options.add_argument("--window-size=1920,1080")
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-infobars")
 
         service = ChromeService(executable_path=ChromeDriverManager().install())

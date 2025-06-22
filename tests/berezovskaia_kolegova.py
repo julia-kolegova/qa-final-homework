@@ -1,114 +1,155 @@
-
 import unittest
 import time
-from urllib.parse import urlencode
 
 from selenium import webdriver
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-
-BASE_URL = "http://localhost:8000"
-
-
-def build_url(balance=33000, reserved=2000, **extra):
-    params = {"balance": balance, "reserved": reserved}
-    params.update(extra)
-    return f"{BASE_URL}/?{urlencode(params)}"
+from selenium.webdriver.remote.webelement import WebElement
 
 
-class TestTransferCore(unittest.TestCase):
+class TestKolegova(unittest.TestCase):
     def setUp(self) -> None:
-        options = ChromeOptions()
-        options.add_argument("--headless")
-        options.add_argument("--window-size=1920,1080")
+        chrome_options = ChromeOptions()
+
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-infobars")
+
         service = ChromeService(executable_path=ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.driver.implicitly_wait(5)
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
     def tearDown(self) -> None:
         self.driver.quit()
 
-    def fill_card_and_amount(self, card: str, amount: str):
-        self.driver.find_element(By.CSS_SELECTOR, "input[name='card']").clear()
-        self.driver.find_element(By.CSS_SELECTOR, "input[name='card']").send_keys(card)
-        amt = self.driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-        amt.clear()
-        amt.send_keys(amount)
+    def enable_rubles(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[1]/div')
+        rubles_field.click()
 
-    def click_send(self):
-        self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    def enable_dollars(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[2]/div')
+        rubles_field.click()
 
-    def get_fee(self) -> str:
-        return self.driver.find_element(By.CSS_SELECTOR, "#fee").text.replace(" ", "")
+    def card_input(self, card_number: str) -> str:
+        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
+        input_field.send_keys(card_number)
+        value = input_field.get_attribute("value")
+        return value.replace(" ", "")
 
-    def get_toast(self) -> str | None:
+    def amount_input(self, amount: str) -> str:
+        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input[2]')
+        input_field.clear()
+        input_field.send_keys(amount)
+        value = input_field.get_attribute("value")
+        return value.replace(" ", "")
+
+    def get_send_button(self) -> WebElement | None:
         try:
-            return self.driver.find_element(By.CSS_SELECTOR, ".toast").text
-        except Exception:
+            send_button = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button/span')
+            return send_button
+        except:
             return None
 
+    def send_money(self, button: WebElement):
+        button.click()
+
+    def get_exception_message(self) -> WebElement | None:
+        try:
+            exception_message = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/span[2]')
+            return exception_message
+        except:
+            return None
+
+    def get_fee(self) -> str:
+        fee_el = self.driver.find_element(By.XPATH, '//*[@id="comission"]')
+        value = fee_el.text
+        return value.replace(" ", "")
+
+    def get_toast(self) -> str:
+        driver = self.driver
+        alert = driver.switch_to.alert
+        alert_text = alert.text
+        alert.accept()
+        return alert_text
+
     def test_tc_001_commission_recalculation(self):
-        self.driver.get(build_url(balance=20000, reserved=0))
-        self.fill_card_and_amount("5559000000000000", "5000")
+        card = "5559000000000000"
+        money_1 = "5000"
+        money_2 = "1000"
+        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        time.sleep(2)
+        self.enable_rubles()
+
+        self.card_input(card)
+        self.amount_input(money_1)
         self.assertTrue(self.get_fee().startswith("500"))
 
-        self.click_send()
+        button = self.get_send_button()
+        self.send_money(button)
         time.sleep(1)
-        self.assertIn("успешно", self.get_toast().lower())
+        self.assertIn("принят", self.get_toast().lower())
 
-        self.fill_card_and_amount("5559000000000000", "1000")
+        self.amount_input(money_2)
         self.assertTrue(self.get_fee().startswith("100"))
 
     def test_tc_002_success_message_amount_and_fee(self):
-        self.driver.get(build_url(balance=20000, reserved=0))
-        self.fill_card_and_amount("4111111111111111", "1000")
-        self.click_send()
+        card = "4111111111111111"
+        money = "1000"
+
+        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        time.sleep(2)
+        self.enable_rubles()
+        self.card_input(card)
+        self.amount_input(money)
+        send_button = self.get_send_button()
+        self.send_money(send_button)
         time.sleep(1)
-        toast = self.get_toast().lower().replace(" ", "")
-        self.assertIn("1000", toast)
-        self.assertIn("100", toast)
+        toast = self.get_toast()
+        self.assertEqual(f"Перевод {money} ₽ на карту {card} принят банком!", toast)
 
     def test_tc_003_usd_overdraft_validation(self):
-        self.driver.get(build_url(balance=100, reserved=0, currency="USD"))
-        try:
-            self.driver.find_element(By.CSS_SELECTOR, "select[name='currency'] option[value='USD']").click()
-        except Exception:
-            pass
+        card = "4000123456789000"
+        money = "3111"
 
-        self.fill_card_and_amount("4000123456789000", "3111")
-        self.click_send()
-        time.sleep(1)
-        toast = self.get_toast().lower()
-        self.assertIn("недостаточно средств", toast)
+        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        time.sleep(2)
+        self.enable_dollars()
+        self.card_input(card)
+        self.amount_input(money)
+
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
 
     def test_tc_004_commission_floor_small_amount(self):
-        self.driver.get(build_url(balance=1000, reserved=0))
-        self.fill_card_and_amount("1234567890901122", "99")
+        card = "1234567890901122"
+        money = "99"
+
+        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        time.sleep(2)
+
+        self.enable_rubles()
+        self.card_input(card)
+        self.amount_input(money)
         self.assertTrue(self.get_fee().startswith("9"))
 
     def test_tc_005_card_number_length_validation(self):
-        self.driver.get(build_url(balance=10000, reserved=0))
+        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        time.sleep(2)
+
+        self.enable_rubles()
+        time.sleep(2)
 
         for card, should_pass in [
             ("123456789012", False),
             ("123456789012345678", False),
             ("5559000000000000", True)
         ]:
-            self.fill_card_and_amount(card, "1000")
-            send_disabled = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']").get_property("disabled")
+            self.card_input(card)
+            button = self.get_send_button()
             if should_pass:
-                self.assertFalse(send_disabled, msg=f"Card {card} should be accepted")
+                self.assertIsNotNone(button, msg=f"Card {card} should be accepted")
             else:
-                self.assertTrue(send_disabled, msg=f"Card {card} should be rejected")
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-"""
-
-with open('/mnt/data/unittest_transfer_core_v2.py', 'w', encoding='utf-8') as f:
-    f.write(unittest_code)
-
-"✅ Файл unittest_transfer_core_v2.py с TC-001…TC-005 (в формате unittest) успешно создан."
+                self.assertIsNone(button, msg=f"Card {card} should be rejected")
