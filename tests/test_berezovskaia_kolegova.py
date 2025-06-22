@@ -22,7 +22,7 @@ class TestKolegova(unittest.TestCase):
         chrome_options.add_argument("--disable-infobars")
         chrome_options.add_argument("--no-sandbox")
 
-        service = ChromeService(executable_path=ChromeDriverManager().install())
+        service = ChromeService(executable_path="../chromedriver-win64/chromedriver.exe") # ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
         self.driver.implicitly_wait(10)
 
@@ -95,10 +95,6 @@ class TestKolegova(unittest.TestCase):
         money_1 = "5000"
         money_2 = "1000"
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        r = requests.get("http://localhost:8000/?balance=33000&reserved=1000")
-        if r.status_code != 200:
-            raise Exception("11111111111111111")
-        logging.info(r.content)
         self.find_element('//*[@id="root"]')
         self.enable_rubles()
 
