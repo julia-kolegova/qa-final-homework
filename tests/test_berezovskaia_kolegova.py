@@ -1,5 +1,6 @@
 import unittest
 import time
+import requests
 
 from selenium import webdriver
 from selenium.webdriver import ChromeOptions
@@ -93,6 +94,9 @@ class TestKolegova(unittest.TestCase):
         money_1 = "5000"
         money_2 = "1000"
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        r = requests.get("http://localhost:8000/?balance=33000&reserved=1000")
+        if r.status_code != 200:
+            raise Exception("11111111111111111")
         self.find_element('//*[@id="root"]')
         self.enable_rubles()
 
