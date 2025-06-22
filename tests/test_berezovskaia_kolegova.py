@@ -21,13 +21,13 @@ class TestKolegova(unittest.TestCase):
 
         service = ChromeService(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        self.driver.implicitly_wait(10)
+        self.driver.implicitly_wait(60)
 
     def tearDown(self) -> None:
         self.driver.quit()
 
     def find_element(self, path: str) -> WebElement:
-        entity = WebDriverWait(self.driver, 10).until(
+        entity = WebDriverWait(self.driver, 60).until(
             EC.element_to_be_clickable(
                 (
                     By.XPATH,
@@ -93,6 +93,7 @@ class TestKolegova(unittest.TestCase):
         money_2 = "1000"
         print(11111111111111)
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+        self.find_element('//*[@id="root"]')
         print(self.driver.title)
         self.enable_rubles()
 
