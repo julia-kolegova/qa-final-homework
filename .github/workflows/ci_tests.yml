@@ -18,6 +18,7 @@ jobs:
       - name: install dependencies
         run: pip install -r requirements.txt
       - name: run web client
+        shell: cmd
         run: start /b python -m http.server 8000
       - name: Wait for web client
         run: |
