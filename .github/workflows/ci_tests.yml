@@ -20,6 +20,17 @@ jobs:
       - name: run web client
         shell: bash
         run: | 
+          cd dist
           python -m http.server 8000 &
-          sleep 7
-          python -m unittest discover -s tests -v
+      - name: Wait for web client (cmd + curl)
+        shell: bash
+        run: |
+          for i in $(seq 1 30); do
+            curl --fail http://localhost:8000 && echo "Server is up!" && exit 0
+            echo "Waiting for server... Attempt $i"
+            sleep 2
+          done
+          echo "Server did not start within the given time."
+          exit 1
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
