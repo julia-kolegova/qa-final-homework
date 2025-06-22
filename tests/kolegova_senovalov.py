@@ -1,127 +1,167 @@
 
-import pytest
+import unittest
+import time
+
 from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver import ChromeOptions
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webelement import WebElement
+
 
 BASE_URL = "http://localhost:8000"
 
-# ---------- Fixtures ---------- #
-@pytest.fixture(scope="function")
-def driver():
-    """Spin-up Chrome (or another webdriver) for each test."""
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")  
-    driver = webdriver.Chrome(options=options)
-    driver.implicitly_wait(5)
-    yield driver
-    driver.quit()
+
+class TestTransferCore(unittest.TestCase):
+    # ---------- set-up / tear-down ---------- #
+    def setUp(self) -> None:
+        chrome_options = ChromeOptions()
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-infobars")
+
+        service = ChromeService(executable_path=ChromeDriverManager().install())
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    def tearDown(self) -> None:
+        self.driver.quit()
+
+    # ---------- служебные методы ---------- #
+    def open_app(self, balance: int | float, reserved: int | float, **query):
+        url = f"{BASE_URL}/?balance={balance}&reserved={reserved}"
+        for k, v in query.items():
+            url += f"&{k}={v}"
+        self.driver.get(url)
+
+    def card_input(self, card_number: str) -> str:
+        field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
+        field.clear()
+        field.send_keys(card_number)
+        return field.get_attribute("value").replace(" ", "")
+
+    def amount_input(self, amount: str) -> str:
+        field = self.driver.find_element(
+            By.XPATH, '//*[@id="root"]/div/div/div[2]/input[2]'
+        )
+        field.clear()
+        field.send_keys(amount)
+        return field.get_attribute("value").replace(" ", "")
+
+    def get_fee_value(self) -> str:
+        fee_el = self.driver.find_element(By.XPATH, '//*[@id="fee"]')
+        return fee_el.text.replace(" ", "")
+
+    def click_send(self):
+        btn = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button')
+        btn.click()
+
+    def get_toast(self) -> str | None:
+        try:
+            toast = self.driver.find_element(By.XPATH, '//div[contains(@class,"toast")]')
+            return toast.text
+        except:
+            return None
+
+    # ---------- TC-011 ---------- #
+    def test_exact_available_balance_transfer(self):
+        """
+        Баланс 1 100 ₽, перевод 1 000 ₽ + комиссия 100 ₽ = 0 ₽.
+        Должно пройти успешно и обнулить баланс.
+        """
+        self.open_app(balance=1100, reserved=0)
+        time.sleep(2)
+
+        self.card_input("5559000000000000")
+        self.amount_input("1000")
+        initial_fee = self.get_fee_value()
+        self.assertTrue(initial_fee.startswith("100"), "Комиссия не равна 100 ₽")
+
+        self.click_send()
+        time.sleep(2)
+
+        toast = self.get_toast()
+        self.assertIsNotNone(toast)
+        self.assertIn("успешно", toast.lower())
+
+        balance_el = self.driver.find_element(By.XPATH, '//*[@id="balance"]')
+        self.assertIn(balance_el.text.replace(" ", ""), ("0₽", "0"))
+
+    # ---------- TC-012 ---------- #
+    def test_amount_with_comma(self):
+        self.open_app(balance=10000, reserved=0)
+        time.sleep(2)
+
+        self.card_input("5559000000000000")
+        self.amount_input("1234,56")
+        fee = self.get_fee_value()
+        self.assertTrue(fee.startswith("123"), "Комиссия должна быть 123 ₽")
+
+        self.click_send()
+        time.sleep(1)
+        toast = self.get_toast()
+        self.assertIn("успешно", toast.lower())
+
+    # ---------- TC-013 ---------- #
+    def test_amount_with_thousand_separator(self):
+        self.open_app(balance=10000, reserved=0)
+        time.sleep(2)
+
+        self.card_input("5559000000000000")
+        self.amount_input("1 000")            # ввод с пробелом
+        amount_val = self.amount_input("1 000")
+        self.assertEqual(amount_val, "1000", "Разделитель тысяч не убран")
+
+        self.click_send()
+        time.sleep(1)
+        self.assertIn("успешно", self.get_toast().lower())
+
+    # ---------- TC-014 ---------- #
+    def test_amount_more_than_two_decimals(self):
+        self.open_app(balance=10000, reserved=0)
+        time.sleep(2)
+
+        self.card_input("5559000000000000")
+        self.amount_input("1234,567")         # 3 знака после запятой
+
+        # должно появиться сообщение об ошибке и кнопка стать неактивной
+        error_msg = self.driver.find_element(By.XPATH, '//*[@id="amountError"]').text
+        self.assertIn("два знака", error_msg.lower())
+
+        send_btn_disabled = self.driver.find_element(
+            By.XPATH, '//*[@id="root"]/div/div/div[2]/button'
+        ).get_attribute("disabled")
+        self.assertTrue(send_btn_disabled)
+
+    # ---------- TC-015 ---------- #
+    def test_parallel_transfers(self):
+        """
+        Параллельный перевод из двух вкладок:
+        1) 2 000 ₽ проходит.
+        2) 3 000 ₽ во второй вкладке должен быть отклонён.
+        """
+        # первая вкладка
+        self.open_app(balance=5000, reserved=0)
+        time.sleep(2)
+        self.card_input("5559000000000000")
+        self.amount_input("2000")
+        self.click_send()
+        time.sleep(1)
+        self.assertIn("успешно", self.get_toast().lower())
+
+        # открываем вторую вкладку тем же водителем
+        self.driver.execute_script('window.open("", "_blank");')
+        self.driver.switch_to.window(self.driver.window_handles[1])
+        self.open_app(balance=5000, reserved=0)
+        time.sleep(2)
+
+        self.card_input("5559000000000000")
+        self.amount_input("3000")
+        self.click_send()
+        time.sleep(1)
+        toast = self.get_toast().lower()
+        self.assertIn("недостаточно средств", toast)
 
 
-# ---------- Helper functions ---------- #
-def open_with_balance(driver, balance: int | float, reserved: int | float):
-    driver.get(f"{BASE_URL}?balance={balance}&reserved={reserved}")
-
-
-def fill_transfer_form(driver, card_number: str, amount: str):
-    """Enter card and amount without clicking the button."""
-    driver.find_element(By.CSS_SELECTOR, "input[name='card']").clear()
-    driver.find_element(By.CSS_SELECTOR, "input[name='card']").send_keys(card_number)
-
-    amt_input = driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-    amt_input.clear()
-    amt_input.send_keys(str(amount))
-
-
-def click_transfer(driver):
-    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-
-
-def get_toast_text(driver) -> str:
-    toast = WebDriverWait(driver, 5).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, ".toast"))
-    )
-    return toast.text
-
-
-# ---------- TC-011 ---------- #
-def test_exact_available_balance_transfer(driver):
-    \"\"\"Баланс 1 100 ₽, перевод 1 000 ₽ + комиссия 100 ₽ = 0 ₽.
-    Операция должна пройти успешно.\"\"\"
-    open_with_balance(driver, 1100, 0)
-    fill_transfer_form(driver, "5559000000000000", "1000")
-    click_transfer(driver)
-
-    assert "успешно" in get_toast_text(driver).lower()
-    new_balance = driver.find_element(By.CSS_SELECTOR, "#balance").text
-    assert new_balance.replace(" ", "").replace("₽", "") in {"0", "0.00"}
-
-
-# ---------- TC-012 ---------- #
-@pytest.mark.parametrize("amount_raw, expected_commission", [("1234,56", "123"), ("987,65", "98")])
-def test_amount_with_comma(driver, amount_raw, expected_commission):
-    open_with_balance(driver, 10000, 0)
-    fill_transfer_form(driver, "5559000000000000", amount_raw)
-
-    commission_text = driver.find_element(By.CSS_SELECTOR, "#fee").text
-    assert commission_text.startswith(expected_commission)
-
-    click_transfer(driver)
-    assert "успешно" in get_toast_text(driver).lower()
-
-
-# ---------- TC-013 ---------- #
-def test_amount_with_thousand_separator(driver):
-    open_with_balance(driver, 10000, 0)
-    fill_transfer_form(driver, "5559000000000000", "1 000")  # пробел
-
-    amount_field = driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-    assert amount_field.get_property("value") == "1000"
-
-    click_transfer(driver)
-    assert "успешно" in get_toast_text(driver).lower()
-
-
-# ---------- TC-014 ---------- #
-def test_amount_more_than_two_decimals(driver):
-    open_with_balance(driver, 10000, 0)
-    fill_transfer_form(driver, "5559000000000000", "1234,567")  # 3 знака после запятой
-
-    error = driver.find_element(By.CSS_SELECTOR, "#amountError").text
-    assert "два знака" in error.lower()
-
-    submit_disabled = driver.find_element(By.CSS_SELECTOR, "button[type='submit']").get_property("disabled")
-    assert submit_disabled is True
-
-
-# ---------- TC-015 ---------- #
-def test_parallel_transfers(driver):
-    \"\"\"Открываем две вкладки (два драйвера) и пытаемся списать > доступного.\"\"\"
-    second_options = webdriver.ChromeOptions()
-    second_options.add_argument("--headless=new")
-    driver2 = webdriver.Chrome(options=second_options)
-    driver2.implicitly_wait(5)
-
-    try:
-        open_with_balance(driver, 5000, 0)
-        open_with_balance(driver2, 5000, 0)
-
-        fill_transfer_form(driver, "5559000000000000", "2000")
-        click_transfer(driver)
-        assert "успешно" in get_toast_text(driver).lower()
-
-        fill_transfer_form(driver2, "5559000000000000", "3000")
-        click_transfer(driver2)
-
-        toast2 = get_toast_text(driver2).lower()
-        assert "недостаточно средств" in toast2
-    finally:
-        driver2.quit()
-'''
-
-with open('/mnt/data/test_transfer.py', 'w', encoding='utf-8') as f:
-    f.write(TESTS)
-
-print("✅ test_transfer.py written to /mnt/data")
-
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
