@@ -19,11 +19,5 @@ jobs:
         run: pip install -r requirements.txt
       - name: run web client
         run: python -m http.server 8000 &
-      - name: Run berezovskaia tests
-        run: python -m unittest tests.berezovskaia_kolegova
-      - name: Run klosep tests
-        run: python -m unittest tests.klosep_berezovskaia
-      - name: Run kolegova tests
-        run: python -m unittest tests.kolegova_senovalov
-      - name: Run senovalov tests
-        run: python -m unittest tests.senovalov_klosep
+      - name: Run tests
+        run: python -m unittest discover -s tests
