@@ -1,0 +1,29 @@
+name: Automated tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test_runner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: install dependencies
+        run: pip install -r requirements.txt
+      - name: run web client
+        run: python -m http.server 8000
+      - name: Run berezovskaia tests
+        run: python -m unittest tests.berezovskaia_kolegova
+      - name: Run klosep tests
+        run: python -m unittest tests.klosep_berezovskaia
+      - name: Run kolegova tests
+        run: python -m unittest tests.kolegova_senovalov
+      - name: Run senovalov tests
+        run: python -m unittest tests.senovalov_klosep
