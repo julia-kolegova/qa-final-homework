@@ -91,6 +91,7 @@ class TestKolegova(unittest.TestCase):
         card = "5559000000000000"
         money_1 = "5000"
         money_2 = "1000"
+        print(11111111111111)
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
         print(self.driver.title)
         self.enable_rubles()

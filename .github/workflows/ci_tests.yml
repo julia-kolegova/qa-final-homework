@@ -31,4 +31,4 @@ jobs:
           echo "Server did not start within the given time."
           exit 1
       - name: Run tests
-        run: python -m unittest discover -s tests
+        run: python -m unittest discover -s tests -v
