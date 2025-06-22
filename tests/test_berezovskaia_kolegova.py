@@ -7,6 +7,8 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
 class TestKolegova(unittest.TestCase):
@@ -24,22 +26,33 @@ class TestKolegova(unittest.TestCase):
     def tearDown(self) -> None:
         self.driver.quit()
 
+    def find_element(self, path: str) -> WebElement:
+        entity = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable(
+                (
+                    By.XPATH,
+                    path
+                )
+            )
+        )
+        return entity
+
     def enable_rubles(self):
-        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[1]/div')
+        rubles_field = self.find_element('//*[@id="root"]/div/div/div[1]/div[1]/div')
         rubles_field.click()
 
     def enable_dollars(self):
-        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[2]/div')
-        rubles_field.click()
+        dollars_field = self.find_element('//*[@id="root"]/div/div/div[1]/div[2]/div')
+        dollars_field.click()
 
     def card_input(self, card_number: str) -> str:
-        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
+        input_field = self.find_element('//*[@id="root"]/div/div/div[2]/input')
         input_field.send_keys(card_number)
         value = input_field.get_attribute("value")
         return value.replace(" ", "")
 
     def amount_input(self, amount: str) -> str:
-        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input[2]')
+        input_field = self.find_element('//*[@id="root"]/div/div/div[2]/input[2]')
         input_field.clear()
         input_field.send_keys(amount)
         value = input_field.get_attribute("value")
@@ -47,7 +60,7 @@ class TestKolegova(unittest.TestCase):
 
     def get_send_button(self) -> WebElement | None:
         try:
-            send_button = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button/span')
+            send_button = self.find_element('//*[@id="root"]/div/div/div[2]/button/span')
             return send_button
         except:
             return None
@@ -57,13 +70,13 @@ class TestKolegova(unittest.TestCase):
 
     def get_exception_message(self) -> WebElement | None:
         try:
-            exception_message = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/span[2]')
+            exception_message = self.find_element('//*[@id="root"]/div/div/div[2]/span[2]')
             return exception_message
         except:
             return None
 
     def get_fee(self) -> str:
-        fee_el = self.driver.find_element(By.XPATH, '//*[@id="comission"]')
+        fee_el = self.find_element('//*[@id="comission"]')
         value = fee_el.text
         return value.replace(" ", "")
 
@@ -79,7 +92,6 @@ class TestKolegova(unittest.TestCase):
         money_1 = "5000"
         money_2 = "1000"
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        time.sleep(5)
         self.enable_rubles()
 
         self.card_input(card)
@@ -88,7 +100,6 @@ class TestKolegova(unittest.TestCase):
 
         button = self.get_send_button()
         self.send_money(button)
-        time.sleep(2)
         self.assertIn("принят", self.get_toast().lower())
 
         self.amount_input(money_2)
