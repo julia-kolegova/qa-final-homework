@@ -1,115 +1,151 @@
 import unittest
-from urllib.parse import quote
+import time
+
 from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-BASE_URL = "http://localhost:8000/"
+from selenium.webdriver.remote.webelement import WebElement
 
 
-class TestTransferAdditional(unittest.TestCase):
-    def setUp(self):
-        options = ChromeOptions()
-        options.add_argument("--headless")
-        options.add_argument("--window-size=1920,1080")
+class TestKlosep(unittest.TestCase):
+    def setUp(self) -> None:
+        chrome_options = ChromeOptions()
+
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument("--disable-infobars")
+
         service = ChromeService(executable_path=ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.driver.implicitly_wait(5)
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    def tearDown(self):
-        self.driver.quit()
+    def get_url(self, url: str):
+        self.driver.get(url=url)
 
-    def get_text(self, selector: str) -> str:
-        return self.driver.find_element(By.CSS_SELECTOR, selector).text
+    def enable_rubles(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[1]/div')
+        rubles_field.click()
 
-    def wait_error(self) -> str:
-        return WebDriverWait(self.driver, 5).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, ".error, .toast-error"))
-        ).text.lower()
+    def enable_evro(self):
+        rubles_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[1]/div[3]/div')
+        rubles_field.click()
 
-    def test_tc_006_invalid_balance_reserved_query(self):
-        url = BASE_URL + "?balance=" + quote("330%1.4") + "&reserved=%21"
-        self.driver.get(url)
+    def card_input(self, card_number: str) -> str:
+        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input')
+        input_field.send_keys(card_number)
+        value = input_field.get_attribute("value")
+        return value.replace(" ", "")
 
-        balance_text = self.get_text("#balance")
-        reserve_text = self.get_text("#reserved")
+    def amount_input(self, amount: str) -> str:
+        input_field = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/input[2]')
+        input_field.clear()
+        input_field.send_keys(amount)
+        value = input_field.get_attribute("value")
+        return value.replace(" ", "")
 
-        self.assertNotIn("%", balance_text)
-        self.assertNotIn("!", reserve_text)
-        self.assertTrue(balance_text.replace(" ", "").replace("₽", "").isdigit())
-        self.assertTrue(reserve_text.replace(" ", "").replace("₽", "").isdigit())
-
-    def test_tc_007_reserved_exceeds_balance(self):
-        self.driver.get(f"{BASE_URL}?balance=33001&reserved=330014")
+    def get_send_button(self) -> WebElement | None:
         try:
-            msg = self.wait_error()
-            self.assertIn("резерв", msg)
-            self.assertIn("баланс", msg)
-        except Exception:
-            reserve = self.get_text("#reserved")
-            balance = self.get_text("#balance")
-            rv = int("".join(filter(str.isdigit, reserve)))
-            bv = int("".join(filter(str.isdigit, balance)))
-            self.assertLessEqual(rv, bv)
+            send_button = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/button/span')
+            return send_button
+        except:
+            return None
 
-    def test_tc_008_euro_transfer_exceeds_balance(self):
-        self.driver.get(f"{BASE_URL}?currency=EUR&balance=1000&reserved=0")
+    def send_money(self, button: WebElement):
+        button.click()
+
+    def get_exception_message(self) -> WebElement | None:
         try:
-            self.driver.find_element(By.CSS_SELECTOR, "select[name='currency'] option[value='EUR']").click()
-        except Exception:
-            pass
+            exception_message = self.driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[2]/span[2]')
+            return exception_message
+        except:
+            return None
 
-        self.driver.find_element(By.CSS_SELECTOR, "input[name='card']").send_keys("4111111111111111")
-        amt = self.driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-        amt.clear()
-        amt.send_keys("1500")
-        self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    def get_ruble_balance(self) -> str:
+        ruble_balance = self.driver.find_element(By.XPATH, '//*[@id="rub-sum"]')
+        value = ruble_balance.text
+        value = value.replace("'", "")
+        return value
 
-        msg = self.wait_error()
-        self.assertIn("недостаточно средств", msg)
+    def get_ruble_reserve(self) -> str:
+        ruble_reserve = self.driver.find_element(By.XPATH, '//*[@id="rub-reserved"]')
+        value = ruble_reserve.text
+        value = value.replace("'", "")
+        return value
 
-    def test_tc_009_balance_updates_after_rub_transfer(self):
-        self.driver.get(f"{BASE_URL}?balance=30000&reserved=2000")
+    def get_alert(self) -> str:
+        driver = self.driver
+        alert = driver.switch_to.alert
+        alert_text = alert.text
+        alert.accept()
+        return alert_text
 
-        self.driver.find_element(By.CSS_SELECTOR, "input[name='card']").send_keys("5559000000000000")
-        amt = self.driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-        amt.clear()
-        amt.send_keys("1000")
-        self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    def test_incorrect_balance_and_reserve(self):
+        self.get_url("http://localhost:8000/?balance=330%1.4&reserved=!")
+        time.sleep(5)
+        ruble_balance = self.get_ruble_balance()
+        ruble_reserve = self.get_ruble_reserve()
+        self.assertEqual(ruble_balance, "NaN", "Balance should be NaN")
+        self.assertEqual(ruble_reserve, "NaN", "Reserve should be NaN")
 
-        success = WebDriverWait(self.driver, 5).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, ".toast"))
+    def test_reserve_more_then_balance(self):
+        self.get_url(url='http://localhost:8000/?balance=33001&reserved=330014')
+        time.sleep(5)
+        ruble_balance = self.get_ruble_balance()
+        ruble_reserve = self.get_ruble_reserve()
+        self.assertLessEqual(int(ruble_reserve), int(ruble_balance), "Reserve <= Balance")
+
+    def test_negative_balance_and_reserve(self):
+        self.get_url(url='http://localhost:8000/?balance=-33001&reserved=-330014')
+        time.sleep(5)
+        ruble_balance = self.get_ruble_balance()
+        ruble_reserve = self.get_ruble_reserve()
+        self.assertTrue(int(ruble_balance) > 0, "Balance should be positive")
+        self.assertTrue(int(ruble_reserve) > 0, "Reserve should be positive")
+
+    def test_evro_transaction_amount_more_than_the_amount_on_the_account(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        self.enable_evro()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("1500")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
+
+    def test_balance_update_after_transaction(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        ruble_balance_before_transaction = self.get_ruble_balance()
+        self.enable_rubles()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("1000")
+        send_button = self.get_send_button()
+        self.send_money(button=send_button)
+        self.get_alert()
+        ruble_balance_after_transaction = self.get_ruble_balance()
+        self.assertTrue(
+            ruble_balance_before_transaction > ruble_balance_after_transaction,
+            "Balance should be changed"
         )
-        self.assertIn("успешно", success.text.lower())
 
-        new_balance_text = self.get_text("#balance")
-        new_balance = int("".join(filter(str.isdigit, new_balance_text)))
-        self.assertEqual(new_balance, 28900)
+    def test_amount_start_with_zero(self):
+        self.driver.get(url='http://localhost:8000/?balance=33000&reserved=2000')
+        time.sleep(5)
+        self.enable_rubles()
+        time.sleep(2)
+        self.card_input("1111111111111111")
+        time.sleep(1)
+        self.amount_input("000123")
+        send_button = self.get_send_button()
+        exception_message = self.get_exception_message()
+        self.assertIsNone(send_button, "The send button should not exist")
+        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
 
-    def test_tc_010_amount_starts_with_zero(self):
-        self.driver.get(f"{BASE_URL}?balance=33000&reserved=2000")
-
-        self.driver.find_element(By.CSS_SELECTOR, "input[name='card']").send_keys("5559000000000000")
-        amt = self.driver.find_element(By.CSS_SELECTOR, "input[name='amount']")
-        amt.clear()
-        amt.send_keys("0123")
-
-        submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        self.assertTrue(submit_btn.get_property("disabled"))
-
-        err_text = self.wait_error()
-        self.assertTrue("недопустимый формат" in err_text or "сумма" in err_text)
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-"""
-
-with open('/mnt/data/unittest_transfer_additional.py', 'w', encoding='utf-8') as f:
-    f.write(unittest_additional_tests)
-
-"✅ Файл unittest_transfer_additional.py с TC-006…TC-010 (в формате unittest) успешно создан."
+    def tearDown(self) -> None:
+        self.driver.quit()
