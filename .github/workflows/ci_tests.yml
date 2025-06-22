@@ -18,7 +18,7 @@ jobs:
       - name: install dependencies
         run: pip install -r requirements.txt
       - name: run web client
-        run: python -m http.server 8000
+        run: python -m http.server 8000 &
       - name: Run berezovskaia tests
         run: python -m unittest tests.berezovskaia_kolegova
       - name: Run klosep tests
