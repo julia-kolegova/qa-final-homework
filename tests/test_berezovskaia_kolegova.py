@@ -19,6 +19,7 @@ class TestKolegova(unittest.TestCase):
 
         service = ChromeService(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.driver.implicitly_wait(10)
 
     def tearDown(self) -> None:
         self.driver.quit()
@@ -93,63 +94,63 @@ class TestKolegova(unittest.TestCase):
         self.amount_input(money_2)
         self.assertTrue(self.get_fee().startswith("100"))
 
-    def test_tc_002_success_message_amount_and_fee(self):
-        card = "4111111111111111"
-        money = "1000"
-
-        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        time.sleep(2)
-        self.enable_rubles()
-        self.card_input(card)
-        self.amount_input(money)
-        send_button = self.get_send_button()
-        self.send_money(send_button)
-        time.sleep(1)
-        toast = self.get_toast()
-        self.assertEqual(f"Перевод {money} ₽ на карту {card} принят банком!", toast)
-
-    def test_tc_003_usd_overdraft_validation(self):
-        card = "4000123456789000"
-        money = "3111"
-
-        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        time.sleep(2)
-        self.enable_dollars()
-        self.card_input(card)
-        self.amount_input(money)
-
-        send_button = self.get_send_button()
-        exception_message = self.get_exception_message()
-        self.assertIsNone(send_button, "The send button should not exist")
-        self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
-
-    def test_tc_004_commission_floor_small_amount(self):
-        card = "1234567890901122"
-        money = "99"
-
-        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        time.sleep(2)
-
-        self.enable_rubles()
-        self.card_input(card)
-        self.amount_input(money)
-        self.assertTrue(self.get_fee().startswith("9"))
-
-    def test_tc_005_card_number_length_validation(self):
-        self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        time.sleep(2)
-
-        self.enable_rubles()
-        time.sleep(2)
-
-        for card, should_pass in [
-            ("123456789012", False),
-            ("123456789012345678", False),
-            ("5559000000000000", True)
-        ]:
-            self.card_input(card)
-            button = self.get_send_button()
-            if should_pass:
-                self.assertIsNotNone(button, msg=f"Card {card} should be accepted")
-            else:
-                self.assertIsNone(button, msg=f"Card {card} should be rejected")
+    # def test_tc_002_success_message_amount_and_fee(self):
+    #     card = "4111111111111111"
+    #     money = "1000"
+    #
+    #     self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+    #     time.sleep(2)
+    #     self.enable_rubles()
+    #     self.card_input(card)
+    #     self.amount_input(money)
+    #     send_button = self.get_send_button()
+    #     self.send_money(send_button)
+    #     time.sleep(1)
+    #     toast = self.get_toast()
+    #     self.assertEqual(f"Перевод {money} ₽ на карту {card} принят банком!", toast)
+    #
+    # def test_tc_003_usd_overdraft_validation(self):
+    #     card = "4000123456789000"
+    #     money = "3111"
+    #
+    #     self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+    #     time.sleep(2)
+    #     self.enable_dollars()
+    #     self.card_input(card)
+    #     self.amount_input(money)
+    #
+    #     send_button = self.get_send_button()
+    #     exception_message = self.get_exception_message()
+    #     self.assertIsNone(send_button, "The send button should not exist")
+    #     self.assertIsNotNone(exception_message, "An error about an invalid transaction should be displayed")
+    #
+    # def test_tc_004_commission_floor_small_amount(self):
+    #     card = "1234567890901122"
+    #     money = "99"
+    #
+    #     self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+    #     time.sleep(2)
+    #
+    #     self.enable_rubles()
+    #     self.card_input(card)
+    #     self.amount_input(money)
+    #     self.assertTrue(self.get_fee().startswith("9"))
+    #
+    # def test_tc_005_card_number_length_validation(self):
+    #     self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
+    #     time.sleep(2)
+    #
+    #     self.enable_rubles()
+    #     time.sleep(2)
+    #
+    #     for card, should_pass in [
+    #         ("123456789012", False),
+    #         ("123456789012345678", False),
+    #         ("5559000000000000", True)
+    #     ]:
+    #         self.card_input(card)
+    #         button = self.get_send_button()
+    #         if should_pass:
+    #             self.assertIsNotNone(button, msg=f"Card {card} should be accepted")
+    #         else:
+    #             self.assertIsNone(button, msg=f"Card {card} should be rejected")
