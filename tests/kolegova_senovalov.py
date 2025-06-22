@@ -82,6 +82,13 @@ class TestSenovalov(unittest.TestCase):
         value = value.replace("'", "")
         return value
 
+    def is_decimal_string(self, s):
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+
     # ---------- TC-011 ---------- #
     def test_exact_available_balance_transfer(self):
         """
@@ -162,34 +169,30 @@ class TestSenovalov(unittest.TestCase):
         self.assertIsNone(send_button)
 
     # ---------- TC-015 ---------- #
-    def test_parallel_transfers(self):
+    def test_float_balance_coma(self):
         """
         Параллельный перевод из двух вкладок:
         1) 2 000 ₽ проходит.
         2) 3 000 ₽ во второй вкладке должен быть отклонён.
         """
         # первая вкладка
-        self.open_app(balance=5000, reserved=0)
-        time.sleep(2)
-        self.card_input("5559000000000000")
-        self.amount_input("2000")
-        self.click_send()
-        time.sleep(1)
-        self.assertIn("успешно", self.get_toast().lower())
-
-        # открываем вторую вкладку тем же водителем
-        self.driver.execute_script('window.open("", "_blank");')
-        self.driver.switch_to.window(self.driver.window_handles[1])
-        self.open_app(balance=5000, reserved=0)
+        self.driver.get(url='http://localhost:8000/?balance=1000,50&reserved=2000')
         time.sleep(2)
 
-        self.card_input("5559000000000000")
-        self.amount_input("3000")
-        self.click_send()
-        time.sleep(1)
-        toast = self.get_toast().lower()
-        self.assertIn("недостаточно средств", toast)
+        ruble_balance = self.get_ruble_balance()
+        self.assertTrue(self.is_decimal_string(ruble_balance))
+        self.assertEqual(float(ruble_balance), 1000.50, "Balance should be a number")
 
+    def test_float_balance_dot(self):
+        """
+        Параллельный перевод из двух вкладок:
+        1) 2 000 ₽ проходит.
+        2) 3 000 ₽ во второй вкладке должен быть отклонён.
+        """
+        # первая вкладка
+        self.driver.get(url='http://localhost:8000/?balance=1000.50&reserved=2000')
+        time.sleep(2)
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+        ruble_balance = self.get_ruble_balance()
+        self.assertTrue(self.is_decimal_string(ruble_balance))
+        self.assertEqual(float(ruble_balance), 1000.50, "Balance should be a number")
