@@ -21,9 +21,5 @@ jobs:
         shell: bash
         run: | 
           python -m http.server 8000 &
-          for i in $(seq 1 30); do
-            curl --fail http://localhost:8000 && echo "Server is up!" && exit 0
-            echo "Waiting for server... Attempt $i"
-            sleep 2
-          done
+          sleep 7
           python -m unittest discover -s tests -v
