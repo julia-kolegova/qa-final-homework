@@ -15,9 +15,10 @@ class TestKolegova(unittest.TestCase):
         chrome_options = ChromeOptions()
 
         chrome_options.add_argument("--window-size=1920,1080")
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-infobars")
         chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
 
         service = ChromeService(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -91,10 +92,7 @@ class TestKolegova(unittest.TestCase):
         card = "5559000000000000"
         money_1 = "5000"
         money_2 = "1000"
-        print(11111111111111)
         self.driver.get("http://localhost:8000/?balance=33000&reserved=1000")
-        self.find_element('//*[@id="root"]')
-        print(self.driver.title)
         self.enable_rubles()
 
         self.card_input(card)
