@@ -22,7 +22,7 @@ class TestKolegova(unittest.TestCase):
         chrome_options.add_argument("--disable-infobars")
         chrome_options.add_argument("--no-sandbox")
 
-        service = ChromeService(executable_path="../chromedriver-win64/chromedriver.exe") # ChromeDriverManager().install())
+        service = ChromeService(executable_path=ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
         self.driver.implicitly_wait(10)
 
